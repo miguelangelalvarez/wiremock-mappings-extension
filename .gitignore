@@ -1,2 +1,7 @@
+# Files
 *.class
 *.log
+
+# Folders
+.idea/
+target/
