@@ -10,9 +10,7 @@ import com.github.tomakehurst.wiremock.stubbing.{StubMapping, StubMappings}
 import com.google.common.base.Charsets
 
 class SingleJsonFileMappingsSource(fileName: String) extends MappingsSource {
-  private val MappingFolder: String = "mappings"
-
-  private val file: TextFile = new TextFile(getClass.getClassLoader.getResource(s"$MappingFolder/$fileName").toURI)
+  private val file: TextFile = new TextFile(getClass.getClassLoader.getResource(s"mappings/$fileName").toURI)
   private var fileId: UUID = _
 
   override def save(stubMappings: util.List[StubMapping]): Unit = stubMappings.forEach(save(_))
@@ -27,7 +25,7 @@ class SingleJsonFileMappingsSource(fileName: String) extends MappingsSource {
 
   override def loadMappingsInto(stubMappings: StubMappings): Unit =
     if (Files.exists(Paths.get(file.getPath))) {
-      val mapping:StubMapping = StubMapping.buildFrom(file.readContentsAsString())
+      val mapping: StubMapping = StubMapping.buildFrom(file.readContentsAsString())
       mapping.setDirty(false)
 
       stubMappings.reset()

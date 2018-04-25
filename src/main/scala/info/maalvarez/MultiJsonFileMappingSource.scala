@@ -10,9 +10,7 @@ import com.github.tomakehurst.wiremock.stubbing.{StubMapping, StubMappings}
 import com.google.common.base.Charsets
 
 class MultiJsonFileMappingSource(fileName: String) extends MappingsSource {
-  private val MappingFolder: String = "mappings"
-
-  private val file: TextFile = new TextFile(getClass.getClassLoader.getResource(s"$MappingFolder/$fileName").toURI)
+  private val file: TextFile = new TextFile(getClass.getClassLoader.getResource(s"mappings/$fileName").toURI)
   private val stubMappingSet: scala.collection.mutable.Set[UUID] = scala.collection.mutable.Set.empty
 
   override def save(stubMappings: util.List[StubMapping]): Unit = stubMappings.forEach(save(_))
