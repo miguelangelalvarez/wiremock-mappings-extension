@@ -4,7 +4,11 @@ import java.nio.file.{Files, Paths}
 import java.util
 import java.util.UUID
 
-import com.github.tomakehurst.wiremock.common.{Json, TextFile}
+import com.fasterxml.jackson.annotation.JsonInclude.Include
+import com.fasterxml.jackson.core.`type`.TypeReference
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.scala.DefaultScalaModule
+import com.github.tomakehurst.wiremock.common.TextFile
 import com.github.tomakehurst.wiremock.standalone.MappingsSource
 import com.github.tomakehurst.wiremock.stubbing.{StubMapping, StubMappings}
 import com.google.common.base.Charsets
@@ -13,16 +17,21 @@ class MultiJsonFileMappingSource(fileName: String) extends MappingsSource {
   private val file: TextFile = new TextFile(getClass.getClassLoader.getResource(s"mappings/$fileName").toURI)
   private val stubMappingSet: scala.collection.mutable.Set[UUID] = scala.collection.mutable.Set.empty
 
+  private val mapper: ObjectMapper = new ObjectMapper()
+  mapper.registerModule(DefaultScalaModule)
+  mapper.setSerializationInclusion(Include.NON_NULL)
+
+
   override def save(stubMappings: util.List[StubMapping]): Unit = stubMappings.forEach(save(_))
 
   override def save(stubMapping: StubMapping): Unit = {
-    var stubMappingSeq: Seq[StubMapping] = Json.read[Seq[StubMapping]](file.readContentsAsString(), classOf[Seq[StubMapping]])
+    var stubMappingSeq: Seq[StubMapping] = parseFile()
 
     if (stubMappingSet.contains(stubMapping.getId)) {
       stubMappingSeq = stubMappingSeq.filter(elem => elem.getId != stubMapping.getId)
     }
 
-    val content: String = Json.write[Seq[StubMapping]](stubMappingSeq :+ stubMapping, classOf[Seq[StubMapping]])
+    val content: String = parseStubMappings(stubMappingSeq :+ stubMapping)
 
     Files.write(Paths.get(file.getPath), content.getBytes(Charsets.UTF_8))
 
@@ -33,7 +42,19 @@ class MultiJsonFileMappingSource(fileName: String) extends MappingsSource {
   override def remove(stubMapping: StubMapping): Unit = {
     stubMappingSet -= stubMapping.getId
 
-    if (stubMappingSet.isEmpty) Files.delete(Paths.get(file.getPath))
+    if (stubMappingSet.isEmpty) {
+      Files.delete(Paths.get(file.getPath))
+    } else {
+      var stubMappingSeq: Seq[StubMapping] = parseFile()
+
+      if (stubMappingSet.contains(stubMapping.getId)) {
+        stubMappingSeq = stubMappingSeq.filter(elem => elem.getId != stubMapping.getId)
+
+        val content: String = parseStubMappings(stubMappingSeq)
+
+        Files.write(Paths.get(file.getPath), content.getBytes(Charsets.UTF_8))
+      }
+    }
   }
 
   override def removeAll(): Unit = {
@@ -44,17 +65,22 @@ class MultiJsonFileMappingSource(fileName: String) extends MappingsSource {
 
   override def loadMappingsInto(stubMappings: StubMappings): Unit =
     if (Files.exists(Paths.get(file.getPath))) {
-      splitFileContent(file.readContentsAsString()).foreach(mapping => {
-        mapping.setDirty(false)
+      parseFile()
+        .foreach(mapping => {
+          mapping.setDirty(false)
 
-        stubMappings.reset()
-        stubMappings.addMapping(mapping)
+          stubMappings.reset()
+          stubMappings.addMapping(mapping)
 
-        stubMappingSet += mapping.getId()
-      })
+          stubMappingSet += mapping.getId()
+        })
     }
 
-  private def splitFileContent(content: String): Seq[StubMapping] = Json.read[Seq[StubMapping]](content, classOf[Seq[StubMapping]])
+  private def parseFile(): Seq[StubMapping] =
+    mapper.readValue[Seq[StubMapping]](file.readContentsAsString(), new TypeReference[Seq[StubMapping]](){})
+
+  private def parseStubMappings(value: Seq[StubMapping]): String =
+    mapper.writeValueAsString(value)
 }
 
 object MultiJsonFileMappingSource {

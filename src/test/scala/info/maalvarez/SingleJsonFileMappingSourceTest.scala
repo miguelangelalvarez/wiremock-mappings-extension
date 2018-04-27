@@ -1,23 +1,27 @@
 package info.maalvarez
 
-import java.io.{File, FileWriter}
-import java.nio.file.{Files, Paths}
+import java.nio.file.{Files, Path, Paths}
 import java.util.UUID
 
 import com.github.tomakehurst.wiremock.stubbing.{InMemoryStubMappings, StubMapping}
 import com.google.common.base.Charsets
 import org.specs2._
-import org.specs2.specification.{BeforeAfterAll, BeforeAfterEach, BeforeAll}
+import org.specs2.specification.BeforeAfterAll
 import org.specs2.specification.core.SpecStructure
 
-class SingleJsonFileMappingSourceTest extends Specification with BeforeAll {
+import scala.collection.JavaConverters._
+
+class SingleJsonFileMappingSourceTest extends Specification with BeforeAfterAll {
   val ResourcePath: String = getClass.getClassLoader.getResource("").getPath + "mappings"
-  val TestFileName: String = "single-json-file-mapping-source-test.json"
   val DefaultUuid: UUID = UUID.randomUUID
 
   override def is: SpecStructure =
     s2"""The single JSON file mapping source should
-      | save the stub mapping with the same UUID
+      | throw a NullPointerException if the file does not exist                       $shouldThrowAnExceptionIfTheFileDoesNotExist
+      | not modify the file if there are not any stub mapping with the same id        $shouldNotModifyTheFileIfThereAreNotAnyStubMappingWithTheSameId
+      | modify the file if there is a stub mapping with the same id                   $shouldModifyTheFileIfThereIsAStubMappingWithTheSameId
+      | not modify the file if the stub mapping does not have the same id             $shouldNotModifyTheFileIfTheStubMappingDoesNotHaveTheSameId
+      | modify the file if the stub mapping has the same id                           $shouldModifyTheFileIfTheStubMappingHasTheSameId
       | delete the file when remove is called with an existing stub mapping           $shouldDeleteFileWhenRemoveAnExistingStubMapping
       | not delete the file when remove is called with a non-existing stub mapping    $shouldNotDeleteFileWhenRemoveANonExistingStubMapping
       | delete the file when removeAll is called                                      $shouldDeleteFileWhenRemoveAll
@@ -25,7 +29,159 @@ class SingleJsonFileMappingSourceTest extends Specification with BeforeAll {
 
   override def beforeAll: Unit = Files.createDirectories(Paths.get(ResourcePath))
 
-  private def createFile(filename: String): Unit =
+  override def afterAll: Unit = {
+    val directory: Path = Paths.get(ResourcePath)
+    directory.toFile.listFiles().foreach(file => file.delete())
+
+    Files.delete(directory)
+  }
+
+  def shouldModifyTheFileIfThereIsAStubMappingWithTheSameId = {
+    val fileName: String = UUID.randomUUID().toString
+
+    createFile(fileName)
+
+    val path: Path = Paths.get(s"$ResourcePath/$fileName")
+
+    val oldContent: String = getFileContent(path)
+
+    val mappingSource: SingleJsonFileMappingsSource = SingleJsonFileMappingsSource(fileName)
+    mappingSource.loadMappingsInto(new InMemoryStubMappings())
+
+    val stubMapping1: StubMapping = new StubMapping()
+    stubMapping1.setId(DefaultUuid)
+    stubMapping1.setName("stubMapping1")
+    val stubMapping2: StubMapping = new StubMapping()
+    stubMapping2.setId(UUID.randomUUID())
+    stubMapping2.setName("stubMapping2")
+
+    mappingSource.save(List(stubMapping1, stubMapping2).asJava)
+
+    val newContent: String = getFileContent(path)
+
+    oldContent !== newContent
+  }
+
+  def shouldNotModifyTheFileIfThereAreNotAnyStubMappingWithTheSameId = {
+    val fileName: String = UUID.randomUUID().toString
+
+    createFile(fileName)
+
+    val path: Path = Paths.get(s"$ResourcePath/$fileName")
+
+    val oldContent: String = getFileContent(path)
+
+    val mappingSource: SingleJsonFileMappingsSource = SingleJsonFileMappingsSource(fileName)
+    mappingSource.loadMappingsInto(new InMemoryStubMappings())
+
+    val stubMapping1: StubMapping = new StubMapping()
+    stubMapping1.setId(UUID.randomUUID())
+    stubMapping1.setName("stubMapping1")
+    val stubMapping2: StubMapping = new StubMapping()
+    stubMapping2.setId(UUID.randomUUID())
+    stubMapping2.setName("stubMapping2")
+
+    mappingSource.save(List(stubMapping1, stubMapping2).asJava)
+
+    val newContent: String = getFileContent(path)
+
+    oldContent === newContent
+  }
+
+  def shouldModifyTheFileIfTheStubMappingHasTheSameId = {
+    val fileName: String = UUID.randomUUID().toString
+
+    createFile(fileName)
+
+    val path: Path = Paths.get(s"$ResourcePath/$fileName")
+
+    val oldContent: String = getFileContent(path)
+
+    val mappingSource: SingleJsonFileMappingsSource = SingleJsonFileMappingsSource(fileName)
+    mappingSource.loadMappingsInto(new InMemoryStubMappings())
+
+    val stubMapping: StubMapping = new StubMapping()
+    stubMapping.setId(DefaultUuid)
+    stubMapping.setName("new-one")
+
+    mappingSource.save(stubMapping)
+
+    val newContent: String = getFileContent(path)
+
+    oldContent !== newContent
+  }
+
+  def shouldNotModifyTheFileIfTheStubMappingDoesNotHaveTheSameId = {
+    val fileName: String = UUID.randomUUID().toString
+
+    createFile(fileName)
+
+    val path: Path = Paths.get(s"$ResourcePath/$fileName")
+
+    val oldContent: String = getFileContent(path)
+
+    val mappingSource: SingleJsonFileMappingsSource = SingleJsonFileMappingsSource(fileName)
+    mappingSource.loadMappingsInto(new InMemoryStubMappings())
+
+    val stubMapping: StubMapping = new StubMapping()
+    stubMapping.setId(UUID.randomUUID())
+    stubMapping.setName("new-one")
+
+    mappingSource.save(stubMapping)
+
+    val newContent: String = getFileContent(path)
+
+    oldContent === newContent
+  }
+
+  def shouldThrowAnExceptionIfTheFileDoesNotExist = {
+    SingleJsonFileMappingsSource(UUID.randomUUID().toString) must throwA[NullPointerException]
+  }
+
+  def shouldDeleteFileWhenRemoveAnExistingStubMapping = {
+    val fileName: String = UUID.randomUUID().toString
+
+    createFile(fileName)
+
+    val mappingSource: SingleJsonFileMappingsSource = SingleJsonFileMappingsSource(fileName)
+    mappingSource.loadMappingsInto(new InMemoryStubMappings())
+
+    val stubMapping: StubMapping = new StubMapping()
+    stubMapping.setId(DefaultUuid)
+
+    mappingSource.remove(stubMapping)
+
+    Files.exists(Paths.get(s"$ResourcePath/$fileName")) === false
+  }
+
+  def shouldNotDeleteFileWhenRemoveANonExistingStubMapping = {
+    val fileName: String = UUID.randomUUID().toString
+
+    createFile(fileName)
+
+    val mappingSource: SingleJsonFileMappingsSource = SingleJsonFileMappingsSource(fileName)
+    mappingSource.loadMappingsInto(new InMemoryStubMappings())
+
+    val stubMapping: StubMapping = new StubMapping()
+
+    mappingSource.remove(stubMapping)
+
+    Files.exists(Paths.get(s"$ResourcePath/$fileName")) === true
+  }
+
+  def shouldDeleteFileWhenRemoveAll = {
+    val fileName: String = UUID.randomUUID().toString
+
+    createFile(fileName)
+
+    val mappingSource: SingleJsonFileMappingsSource = SingleJsonFileMappingsSource(fileName)
+    mappingSource.loadMappingsInto(new InMemoryStubMappings())
+    mappingSource.removeAll()
+
+    Files.exists(Paths.get(s"$ResourcePath/$fileName")) === false
+  }
+
+  private def createFile(filename: String) =
     Files.write(
       Paths.get(s"$ResourcePath/$filename"),
       s"""{
@@ -44,41 +200,7 @@ class SingleJsonFileMappingSourceTest extends Specification with BeforeAll {
          |}""".stripMargin.getBytes(Charsets.UTF_8)
     )
 
-  //  def shouldSave
-
-  def shouldDeleteFileWhenRemoveAnExistingStubMapping = {
-    createFile(s"1-$TestFileName")
-
-    val mappingSource: SingleJsonFileMappingsSource = SingleJsonFileMappingsSource(s"1-$TestFileName")
-    val stubMapping: StubMapping = new StubMapping()
-    stubMapping.setId(DefaultUuid)
-
-    mappingSource.loadMappingsInto(new InMemoryStubMappings())
-    mappingSource.remove(stubMapping)
-
-    Files.exists(Paths.get(s"$ResourcePath/1-$TestFileName")) === false
-  }
-
-  def shouldNotDeleteFileWhenRemoveANonExistingStubMapping = {
-    createFile(s"2-$TestFileName")
-
-    val mappingSource: SingleJsonFileMappingsSource = SingleJsonFileMappingsSource(s"2-$TestFileName")
-    val stubMapping: StubMapping = new StubMapping()
-
-    mappingSource.loadMappingsInto(new InMemoryStubMappings())
-    mappingSource.remove(stubMapping)
-
-    Files.exists(Paths.get(s"$ResourcePath/2-$TestFileName")) === true
-  }
-
-  def shouldDeleteFileWhenRemoveAll = {
-    createFile(s"3-$TestFileName")
-
-    val mappingSource: SingleJsonFileMappingsSource = SingleJsonFileMappingsSource(s"3-$TestFileName")
-
-    mappingSource.loadMappingsInto(new InMemoryStubMappings())
-    mappingSource.removeAll()
-
-    Files.exists(Paths.get(s"$ResourcePath/3-$TestFileName")) === false
-  }
+  private def getFileContent(path: Path) =
+    Files.readAllLines(path, Charsets.UTF_8)
+      .asScala.foldLeft("")(_ + _)
 }
