@@ -1,4 +1,4 @@
-package info.maalvarez
+package info.maalvarez.wiremock.mappingloader
 
 import java.nio.file.{Files, Path, Paths}
 import java.util.UUID
@@ -16,7 +16,7 @@ import org.specs2.specification.core.SpecStructure
 import scala.collection.JavaConverters._
 
 class MultiJsonFileMappingSourceTest extends Specification with BeforeAfterAll {
-  val ResourcePath: String = getClass.getClassLoader.getResource("").getPath + "mappings"
+  val ResourcePath: Path = Paths.get(s"src/test/resources/mappings/multi")
   val DefaultUuids: List[UUID] = List.fill[UUID](2)(UUID.randomUUID())
 
   val Mapper: ObjectMapper = new ObjectMapper()
@@ -24,24 +24,22 @@ class MultiJsonFileMappingSourceTest extends Specification with BeforeAfterAll {
   Mapper.setSerializationInclusion(Include.NON_NULL)
 
   override def is: SpecStructure =
-    s2"""The single JSON file mapping source should
-        | throw a NullPointerException if the file does not exist                       $shouldThrowAnExceptionIfTheFileDoesNotExist
-        | add some stub mappings if they do not exist                                   $shouldAddSomeStubMappingsIfTheyDoNotExist
-        | modify the file if there is a stub mapping with the same id                   $shouldModifyTheFileIfThereIsAStubMappingWithTheSameId
-        | add a stub mapping if it does not exist                                       $shouldAddAStubMappingIfItDoesNotExist
-        | modify the file if the stub mapping has the same id                           $shouldModifyTheFileIfTheStubMappingHasTheSameId
-        | delete the file when remove is called with the last stub mapping              $shouldDeleteFileWhenRemoveLastStubMapping
-        | not delete the file when remove is called with a non-existing stub mapping    $shouldNotDeleteFileWhenRemoveANonExistingStubMapping
-        | delete the file when removeAll is called                                      $shouldDeleteFileWhenRemoveAll
+    s2"""The multi JSON file mapping should
+      | add some stub mappings if they do not exist                                   $shouldAddSomeStubMappingsIfTheyDoNotExist
+      | modify the file if there is a stub mapping with the same id                   $shouldModifyTheFileIfThereIsAStubMappingWithTheSameId
+      | add a stub mapping if it does not exist                                       $shouldAddAStubMappingIfItDoesNotExist
+      | modify the file if the stub mapping has the same id                           $shouldModifyTheFileIfTheStubMappingHasTheSameId
+      | delete the file when remove is called with the last stub mapping              $shouldDeleteFileWhenRemoveLastStubMapping
+      | not delete the file when remove is called with a non-existing stub mapping    $shouldNotDeleteFileWhenRemoveANonExistingStubMapping
+      | delete the file when removeAll is called                                      $shouldDeleteFileWhenRemoveAll
     """.stripMargin
 
-  override def beforeAll: Unit = Files.createDirectories(Paths.get(ResourcePath))
+  override def beforeAll: Unit = Files.createDirectories(ResourcePath)
 
   override def afterAll: Unit = {
-    val directory: Path = Paths.get(ResourcePath)
-    directory.toFile.listFiles().foreach(file => file.delete())
+    ResourcePath.toFile.listFiles().foreach(file => file.delete())
 
-    Files.delete(directory)
+    Files.delete(ResourcePath)
   }
 
   def shouldModifyTheFileIfThereIsAStubMappingWithTheSameId = {
@@ -49,9 +47,7 @@ class MultiJsonFileMappingSourceTest extends Specification with BeforeAfterAll {
 
     createFile(fileName)
 
-    val path: Path = Paths.get(s"$ResourcePath/$fileName")
-
-    val mappingSource: MultiJsonFileMappingSource = MultiJsonFileMappingSource(fileName)
+    val mappingSource: MultiJsonFileMappingSource = MultiJsonFileMappingSource(s"multi/$fileName")
     mappingSource.loadMappingsInto(new InMemoryStubMappings())
 
     val stubMapping1: StubMapping = new StubMapping()
@@ -63,7 +59,7 @@ class MultiJsonFileMappingSourceTest extends Specification with BeforeAfterAll {
 
     mappingSource.save(List(stubMapping1, stubMapping2).asJava)
 
-    val content: Seq[StubMapping] = parseFile(path)
+    val content: Seq[StubMapping] = parseFile(Paths.get(s"$ResourcePath/$fileName"))
 
     content.filterNot(elem => elem.getName === stubMapping1.getName).isEmpty == false
   }
@@ -77,7 +73,7 @@ class MultiJsonFileMappingSourceTest extends Specification with BeforeAfterAll {
 
     val oldContent: Seq[StubMapping] = parseFile(path)
 
-    val mappingSource: MultiJsonFileMappingSource = MultiJsonFileMappingSource(fileName)
+    val mappingSource: MultiJsonFileMappingSource = MultiJsonFileMappingSource(s"multi/$fileName")
     mappingSource.loadMappingsInto(new InMemoryStubMappings())
 
     val stubMapping1: StubMapping = new StubMapping()
@@ -101,9 +97,7 @@ class MultiJsonFileMappingSourceTest extends Specification with BeforeAfterAll {
 
     createFile(fileName)
 
-    val path: Path = Paths.get(s"$ResourcePath/$fileName")
-
-    val mappingSource: MultiJsonFileMappingSource = MultiJsonFileMappingSource(fileName)
+    val mappingSource: MultiJsonFileMappingSource = MultiJsonFileMappingSource(s"multi/$fileName")
     mappingSource.loadMappingsInto(new InMemoryStubMappings())
 
     val stubMapping: StubMapping = new StubMapping()
@@ -112,7 +106,7 @@ class MultiJsonFileMappingSourceTest extends Specification with BeforeAfterAll {
 
     mappingSource.save(stubMapping)
 
-    val content: Seq[StubMapping] = parseFile(path)
+    val content: Seq[StubMapping] = parseFile(Paths.get(s"$ResourcePath/$fileName"))
 
     content.filterNot(elem => elem.getName === stubMapping.getName).isEmpty == false
   }
@@ -126,7 +120,7 @@ class MultiJsonFileMappingSourceTest extends Specification with BeforeAfterAll {
 
     val oldContent: Seq[StubMapping] = parseFile(path)
 
-    val mappingSource: MultiJsonFileMappingSource = MultiJsonFileMappingSource(fileName)
+    val mappingSource: MultiJsonFileMappingSource = MultiJsonFileMappingSource(s"multi/$fileName")
     mappingSource.loadMappingsInto(new InMemoryStubMappings())
 
     val stubMapping: StubMapping = new StubMapping()
@@ -140,16 +134,12 @@ class MultiJsonFileMappingSourceTest extends Specification with BeforeAfterAll {
     newContent.size === oldContent.size + 1
   }
 
-  def shouldThrowAnExceptionIfTheFileDoesNotExist = {
-    SingleJsonFileMappingsSource(UUID.randomUUID().toString) must throwA[NullPointerException]
-  }
-
   def shouldDeleteFileWhenRemoveLastStubMapping = {
     val fileName: String = UUID.randomUUID().toString
 
     createFile(fileName)
 
-    val mappingSource: MultiJsonFileMappingSource = MultiJsonFileMappingSource(fileName)
+    val mappingSource: MultiJsonFileMappingSource = MultiJsonFileMappingSource(s"multi/$fileName")
     mappingSource.loadMappingsInto(new InMemoryStubMappings())
 
     DefaultUuids.foreach(uuid => {
@@ -167,7 +157,7 @@ class MultiJsonFileMappingSourceTest extends Specification with BeforeAfterAll {
 
     createFile(fileName)
 
-    val mappingSource: MultiJsonFileMappingSource = MultiJsonFileMappingSource(fileName)
+    val mappingSource: MultiJsonFileMappingSource = MultiJsonFileMappingSource(s"multi/$fileName")
     mappingSource.loadMappingsInto(new InMemoryStubMappings())
 
     val stubMapping: StubMapping = new StubMapping()
@@ -182,7 +172,7 @@ class MultiJsonFileMappingSourceTest extends Specification with BeforeAfterAll {
 
     createFile(fileName)
 
-    val mappingSource: MultiJsonFileMappingSource = MultiJsonFileMappingSource(fileName)
+    val mappingSource: MultiJsonFileMappingSource = MultiJsonFileMappingSource(s"multi/$fileName")
     mappingSource.loadMappingsInto(new InMemoryStubMappings())
     mappingSource.removeAll()
 
@@ -194,19 +184,19 @@ class MultiJsonFileMappingSourceTest extends Specification with BeforeAfterAll {
       Paths.get(s"$ResourcePath/$filename"),
       DefaultUuids.map(uuid =>
         s"""{
-           |  "id": "${uuid.toString}",
-           |  "request": {
-           |    "method": "GET",
-           |    "urlPattern": "/testmapping/${uuid.toString}"
-           |  },
-           |  "response": {
-           |    "status": 200,
-           |    "body": "default test mapping",
-           |    "headers": {
-           |      "Content-Type": "text/plain"
-           |    }
-           |  }
-           |}""".stripMargin
+         |  "id": "${uuid.toString}",
+         |  "request": {
+         |    "method": "GET",
+         |    "urlPattern": "/testmapping/${uuid.toString}"
+         |  },
+         |  "response": {
+         |    "status": 200,
+         |    "body": "default test mapping",
+         |    "headers": {
+         |      "Content-Type": "text/plain"
+         |    }
+         |  }
+         |}""".stripMargin
       ).mkString("[", ", ", "]").getBytes(Charsets.UTF_8)
     )
 

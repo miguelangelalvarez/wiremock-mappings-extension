@@ -1,4 +1,4 @@
-package info.maalvarez
+package info.maalvarez.wiremock.mappingloader
 
 import java.nio.file.{Files, Paths}
 import java.util
@@ -10,7 +10,7 @@ import com.github.tomakehurst.wiremock.stubbing.{StubMapping, StubMappings}
 import com.google.common.base.Charsets
 
 class SingleJsonFileMappingsSource(fileName: String) extends MappingsSource {
-  private val file: TextFile = new TextFile(getClass.getClassLoader.getResource(s"mappings/$fileName").toURI)
+  private val file: TextFile = new TextFile(Paths.get(s"src/test/resources/mappings/$fileName").toUri)
   private var fileId: UUID = _
 
   override def save(stubMappings: util.List[StubMapping]): Unit = stubMappings.forEach(save(_))

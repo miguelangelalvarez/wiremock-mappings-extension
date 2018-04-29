@@ -1,4 +1,4 @@
-package info.maalvarez
+package info.maalvarez.wiremock.mappingloader
 
 import java.nio.file.{Files, Path, Paths}
 import java.util.UUID
@@ -12,28 +12,26 @@ import org.specs2.specification.core.SpecStructure
 import scala.collection.JavaConverters._
 
 class SingleJsonFileMappingSourceTest extends Specification with BeforeAfterAll {
-  val ResourcePath: String = getClass.getClassLoader.getResource("").getPath + "mappings"
+  val ResourcePath: Path = Paths.get(s"src/test/resources/mappings/single")
   val DefaultUuid: UUID = UUID.randomUUID
 
   override def is: SpecStructure =
-    s2"""The single JSON file mapping source should
-      | throw a NullPointerException if the file does not exist                       $shouldThrowAnExceptionIfTheFileDoesNotExist
-      | not modify the file if there are not any stub mapping with the same id        $shouldNotModifyTheFileIfThereAreNotAnyStubMappingWithTheSameId
-      | modify the file if there is a stub mapping with the same id                   $shouldModifyTheFileIfThereIsAStubMappingWithTheSameId
-      | not modify the file if the stub mapping does not have the same id             $shouldNotModifyTheFileIfTheStubMappingDoesNotHaveTheSameId
-      | modify the file if the stub mapping has the same id                           $shouldModifyTheFileIfTheStubMappingHasTheSameId
-      | delete the file when remove is called with an existing stub mapping           $shouldDeleteFileWhenRemoveAnExistingStubMapping
-      | not delete the file when remove is called with a non-existing stub mapping    $shouldNotDeleteFileWhenRemoveANonExistingStubMapping
-      | delete the file when removeAll is called                                      $shouldDeleteFileWhenRemoveAll
+    s2"""The single JSON file mapping should
+        | not modify the file if there are not any stub mapping with the same id        $shouldNotModifyTheFileIfThereAreNotAnyStubMappingWithTheSameId
+        | modify the file if there is a stub mapping with the same id                   $shouldModifyTheFileIfThereIsAStubMappingWithTheSameId
+        | not modify the file if the stub mapping does not have the same id             $shouldNotModifyTheFileIfTheStubMappingDoesNotHaveTheSameId
+        | modify the file if the stub mapping has the same id                           $shouldModifyTheFileIfTheStubMappingHasTheSameId
+        | delete the file when remove is called with an existing stub mapping           $shouldDeleteFileWhenRemoveAnExistingStubMapping
+        | not delete the file when remove is called with a non-existing stub mapping    $shouldNotDeleteFileWhenRemoveANonExistingStubMapping
+        | delete the file when removeAll is called                                      $shouldDeleteFileWhenRemoveAll
     """.stripMargin
 
-  override def beforeAll: Unit = Files.createDirectories(Paths.get(ResourcePath))
+  override def beforeAll: Unit = Files.createDirectories(ResourcePath)
 
   override def afterAll: Unit = {
-    val directory: Path = Paths.get(ResourcePath)
-    directory.toFile.listFiles().foreach(file => file.delete())
+    ResourcePath.toFile.listFiles().foreach(file => file.delete())
 
-    Files.delete(directory)
+    Files.delete(ResourcePath)
   }
 
   def shouldModifyTheFileIfThereIsAStubMappingWithTheSameId = {
@@ -45,7 +43,7 @@ class SingleJsonFileMappingSourceTest extends Specification with BeforeAfterAll 
 
     val oldContent: String = getFileContent(path)
 
-    val mappingSource: SingleJsonFileMappingsSource = SingleJsonFileMappingsSource(fileName)
+    val mappingSource: SingleJsonFileMappingsSource = SingleJsonFileMappingsSource(s"single/$fileName")
     mappingSource.loadMappingsInto(new InMemoryStubMappings())
 
     val stubMapping1: StubMapping = new StubMapping()
@@ -71,7 +69,7 @@ class SingleJsonFileMappingSourceTest extends Specification with BeforeAfterAll 
 
     val oldContent: String = getFileContent(path)
 
-    val mappingSource: SingleJsonFileMappingsSource = SingleJsonFileMappingsSource(fileName)
+    val mappingSource: SingleJsonFileMappingsSource = SingleJsonFileMappingsSource(s"single/$fileName")
     mappingSource.loadMappingsInto(new InMemoryStubMappings())
 
     val stubMapping1: StubMapping = new StubMapping()
@@ -97,7 +95,7 @@ class SingleJsonFileMappingSourceTest extends Specification with BeforeAfterAll 
 
     val oldContent: String = getFileContent(path)
 
-    val mappingSource: SingleJsonFileMappingsSource = SingleJsonFileMappingsSource(fileName)
+    val mappingSource: SingleJsonFileMappingsSource = SingleJsonFileMappingsSource(s"single/$fileName")
     mappingSource.loadMappingsInto(new InMemoryStubMappings())
 
     val stubMapping: StubMapping = new StubMapping()
@@ -120,7 +118,7 @@ class SingleJsonFileMappingSourceTest extends Specification with BeforeAfterAll 
 
     val oldContent: String = getFileContent(path)
 
-    val mappingSource: SingleJsonFileMappingsSource = SingleJsonFileMappingsSource(fileName)
+    val mappingSource: SingleJsonFileMappingsSource = SingleJsonFileMappingsSource(s"single/$fileName")
     mappingSource.loadMappingsInto(new InMemoryStubMappings())
 
     val stubMapping: StubMapping = new StubMapping()
@@ -134,16 +132,12 @@ class SingleJsonFileMappingSourceTest extends Specification with BeforeAfterAll 
     oldContent === newContent
   }
 
-  def shouldThrowAnExceptionIfTheFileDoesNotExist = {
-    SingleJsonFileMappingsSource(UUID.randomUUID().toString) must throwA[NullPointerException]
-  }
-
   def shouldDeleteFileWhenRemoveAnExistingStubMapping = {
     val fileName: String = UUID.randomUUID().toString
 
     createFile(fileName)
 
-    val mappingSource: SingleJsonFileMappingsSource = SingleJsonFileMappingsSource(fileName)
+    val mappingSource: SingleJsonFileMappingsSource = SingleJsonFileMappingsSource(s"single/$fileName")
     mappingSource.loadMappingsInto(new InMemoryStubMappings())
 
     val stubMapping: StubMapping = new StubMapping()
@@ -159,7 +153,7 @@ class SingleJsonFileMappingSourceTest extends Specification with BeforeAfterAll 
 
     createFile(fileName)
 
-    val mappingSource: SingleJsonFileMappingsSource = SingleJsonFileMappingsSource(fileName)
+    val mappingSource: SingleJsonFileMappingsSource = SingleJsonFileMappingsSource(s"single/$fileName")
     mappingSource.loadMappingsInto(new InMemoryStubMappings())
 
     val stubMapping: StubMapping = new StubMapping()
@@ -174,7 +168,7 @@ class SingleJsonFileMappingSourceTest extends Specification with BeforeAfterAll 
 
     createFile(fileName)
 
-    val mappingSource: SingleJsonFileMappingsSource = SingleJsonFileMappingsSource(fileName)
+    val mappingSource: SingleJsonFileMappingsSource = SingleJsonFileMappingsSource(s"single/$fileName")
     mappingSource.loadMappingsInto(new InMemoryStubMappings())
     mappingSource.removeAll()
 

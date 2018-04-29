@@ -1,4 +1,4 @@
-package info.maalvarez
+package info.maalvarez.wiremock.mappingloader
 
 import java.nio.file.{Files, Paths}
 import java.util
@@ -14,13 +14,12 @@ import com.github.tomakehurst.wiremock.stubbing.{StubMapping, StubMappings}
 import com.google.common.base.Charsets
 
 class MultiJsonFileMappingSource(fileName: String) extends MappingsSource {
-  private val file: TextFile = new TextFile(getClass.getClassLoader.getResource(s"mappings/$fileName").toURI)
+  private val file: TextFile = new TextFile(Paths.get(s"src/test/resources/mappings/$fileName").toUri)
   private val stubMappingSet: scala.collection.mutable.Set[UUID] = scala.collection.mutable.Set.empty
 
   private val mapper: ObjectMapper = new ObjectMapper()
   mapper.registerModule(DefaultScalaModule)
   mapper.setSerializationInclusion(Include.NON_NULL)
-
 
   override def save(stubMappings: util.List[StubMapping]): Unit = stubMappings.forEach(save(_))
 
@@ -31,7 +30,7 @@ class MultiJsonFileMappingSource(fileName: String) extends MappingsSource {
       stubMappingSeq = stubMappingSeq.filter(elem => elem.getId != stubMapping.getId)
     }
 
-    val content: String = parseStubMappings(stubMappingSeq :+ stubMapping)
+    val content: String = toJsonString(stubMappingSeq :+ stubMapping)
 
     Files.write(Paths.get(file.getPath), content.getBytes(Charsets.UTF_8))
 
@@ -50,7 +49,7 @@ class MultiJsonFileMappingSource(fileName: String) extends MappingsSource {
       if (stubMappingSet.contains(stubMapping.getId)) {
         stubMappingSeq = stubMappingSeq.filter(elem => elem.getId != stubMapping.getId)
 
-        val content: String = parseStubMappings(stubMappingSeq)
+        val content: String = toJsonString(stubMappingSeq)
 
         Files.write(Paths.get(file.getPath), content.getBytes(Charsets.UTF_8))
       }
@@ -69,7 +68,6 @@ class MultiJsonFileMappingSource(fileName: String) extends MappingsSource {
         .foreach(mapping => {
           mapping.setDirty(false)
 
-          stubMappings.reset()
           stubMappings.addMapping(mapping)
 
           stubMappingSet += mapping.getId()
@@ -79,7 +77,7 @@ class MultiJsonFileMappingSource(fileName: String) extends MappingsSource {
   private def parseFile(): Seq[StubMapping] =
     mapper.readValue[Seq[StubMapping]](file.readContentsAsString(), new TypeReference[Seq[StubMapping]](){})
 
-  private def parseStubMappings(value: Seq[StubMapping]): String =
+  private def toJsonString(value: Seq[StubMapping]): String =
     mapper.writeValueAsString(value)
 }
 
